@@ -16,8 +16,8 @@ struct
     String GW;
 } data;
 
-String IPAddr;
-String Gateway;
+char *ipstrings;
+char *gwstrings;
 
 int addr = 0x00;
 uint8_t retries=0;
@@ -70,14 +70,25 @@ void EEPROM_write()
   int str3AddrOffset = writeStringToEEPROM(str2AddrOffset, server.arg("IP"));
   int str4AddrOffset = writeStringToEEPROM(str3AddrOffset, server.arg("GW"));
 }
+
 void EEPROM_read()
 {
   int newStr1AddrOffset = readStringFromEEPROM(addr, &data.wifi_ssid);
   int newStr2AddrOffset = readStringFromEEPROM(newStr1AddrOffset, &data.wifi_password);
   int newStr3AddrOffset = readStringFromEEPROM(newStr2AddrOffset, &data.IP);
   int newStr4AddrOffset = readStringFromEEPROM(newStr3AddrOffset, &data.GW);
-  Serial.println(data.IP);
-  Serial.print(data.GW);
+}
+
+void glean(String cred, char *token)
+{
+  char garray[(cred.length() + 1)];
+  cred.toCharArray(garray, (cred.length() + 1));
+  token = strtok(garray, ".");
+  while(token != NULL)
+  {
+    Serial.println(atoi(token));
+    token = strtok(NULL, ".");
+  }
 }
 
 int writeStringToEEPROM(int addrOffset, const String &strToWrite)
@@ -131,6 +142,8 @@ void stationmode()
 {
   uint8_t retries=0;
   EEPROM_read();
+  glean(data.IP, ipstrings);
+  glean(data.GW, gwstrings);
   WiFi.mode(WIFI_STA);
   WiFi.begin(data.wifi_ssid, data.wifi_password);
   while(WiFi.status()!=WL_CONNECTED && retries<20)
@@ -154,6 +167,7 @@ void stationmode()
     Serial.println(WiFi.localIP());
   }
 }
+
 void setup() 
 {
   Serial.begin(9600);
