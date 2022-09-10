@@ -22,6 +22,9 @@ char *gwstrings;
 int addr = 0x00;
 uint8_t retries=0;
 
+int STAIP[16];
+int STAGW[16];
+
 String A =  R"=====(
 <!DOCTYPE html>
 <html>
@@ -66,9 +69,17 @@ void handleForm()
 void EEPROM_write()
 {
   int str1AddrOffset = writeStringToEEPROM(addr, server.arg("SSID"));
+  Serial.println("SSID end Offset:");
+  Serial.println(str1AddrOffset);
   int str2AddrOffset = writeStringToEEPROM(str1AddrOffset, server.arg("Password"));
+  Serial.println("Password end offset");
+  Serial.println(str2AddrOffset);
   int str3AddrOffset = writeStringToEEPROM(str2AddrOffset, server.arg("IP"));
+  Serial.println("IP end offset");
+  Serial.println(str3AddrOffset);
   int str4AddrOffset = writeStringToEEPROM(str3AddrOffset, server.arg("GW"));
+  Serial.println("GW end offset");
+  Serial.println(str4AddrOffset);
 }
 
 void EEPROM_read()
@@ -79,15 +90,39 @@ void EEPROM_read()
   int newStr4AddrOffset = readStringFromEEPROM(newStr3AddrOffset, &data.GW);
 }
 
-void glean(String cred, char *token)
+void gleanip(String cred, char *token)
 {
+  int h = 0;
   char garray[(cred.length() + 1)];
+  Serial.println("Length og GARRAY");
+  Serial.println(cred.length());
   cred.toCharArray(garray, (cred.length() + 1));
   token = strtok(garray, ".");
+  Serial.println("IP");
   while(token != NULL)
   {
-    Serial.println(atoi(token));
+    STAIP[h] = (atoi(token));
     token = strtok(NULL, ".");
+    Serial.println(STAIP[h]);
+    h++;
+  }
+}
+
+void gleangw(String cred, char *token)
+{
+  int v = 0;
+  char garray[(cred.length() + 1)];
+  Serial.println("Length og GARRAY");
+  Serial.println(cred.length());
+  cred.toCharArray(garray, (cred.length() + 1));
+  token = strtok(garray, ".");
+  Serial.println("GATEWAY");
+  while(token != NULL)
+  {
+    STAGW[v] = (atoi(token));
+    token = strtok(NULL, ".");
+    Serial.println(STAGW[v]);
+    v++;
   }
 }
 
@@ -102,6 +137,16 @@ int writeStringToEEPROM(int addrOffset, const String &strToWrite)
     Serial.println((ok) ? "OK2" : "Commit failed");
   }
   return addrOffset + 1 + len;
+}
+
+int EEPROM_erase_all()
+{
+  for (int i = 0; i < MAX_STRING_LENGTH; i++)
+  {
+    EEPROM.write(i, 0);
+    ok = EEPROM.commit();
+    Serial.println((ok) ? "ERASE sucess" : "ERASE failed");
+  }
 }
 
 int readStringFromEEPROM(int addrOffset, String *strToRead)
@@ -142,9 +187,22 @@ void stationmode()
 {
   uint8_t retries=0;
   EEPROM_read();
-  glean(data.IP, ipstrings);
-  glean(data.GW, gwstrings);
+  gleanip(data.IP, ipstrings);
+  
+  //Serial.println(STAIP);
+  gleangw(data.GW, gwstrings);
+  
+  //Serial.println(STAGW);
   WiFi.mode(WIFI_STA);
+  IPAddress local_IP(STAIP[0], STAIP[1], STAIP[2], STAIP[3]);
+  IPAddress gateway(STAGW[0], STAGW[1], STAGW[2], STAGW[3]);
+  IPAddress subnet(255, 255, 0, 0);
+  IPAddress primaryDNS(8, 8, 8, 8);   //optional
+  IPAddress secondaryDNS(8, 8, 4, 4); //optional
+  if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) 
+  {
+    Serial.println("STA Failed to configure");
+  }
   WiFi.begin(data.wifi_ssid, data.wifi_password);
   while(WiFi.status()!=WL_CONNECTED && retries<20)
   {
@@ -170,9 +228,17 @@ void stationmode()
 
 void setup() 
 {
+  Serial.println(sizeof(data));
   Serial.begin(9600);
-  EEPROM.begin(sizeof(data));
-  softapmode();
+  EEPROM.begin(MAX_STRING_LENGTH);
+  if(!readStringFromEEPROM(addr, &data.wifi_ssid))
+  {
+    softapmode();
+  }
+  else
+  {
+    stationmode();
+  }
 }
 
 void loop() 
