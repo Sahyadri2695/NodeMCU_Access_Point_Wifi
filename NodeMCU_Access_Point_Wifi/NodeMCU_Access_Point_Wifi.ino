@@ -5,6 +5,9 @@
 
 #define MAX_STRING_LENGTH 64
 
+const int buttonPin = 4;
+int buttonState;
+boolean erase_flag = 0;
 boolean ok;
 const char* ssid = "Hello IoT";
 const char* password = "12345678";
@@ -147,6 +150,7 @@ int EEPROM_erase_all()
     ok = EEPROM.commit();
     Serial.println((ok) ? "ERASE sucess" : "ERASE failed");
   }
+  erase_flag = 1;
 }
 
 int readStringFromEEPROM(int addrOffset, String *strToRead)
@@ -228,10 +232,11 @@ void stationmode()
 
 void setup() 
 {
+  pinMode(buttonPin, INPUT);
   Serial.println(sizeof(data));
   Serial.begin(9600);
   EEPROM.begin(MAX_STRING_LENGTH);
-  if(!readStringFromEEPROM(addr, &data.wifi_ssid))
+  if(readStringFromEEPROM(addr, &data.wifi_ssid) < 2)
   {
     softapmode();
   }
@@ -243,5 +248,12 @@ void setup()
 
 void loop() 
 {
+  // read the state of the pushbutton value
+  buttonState = digitalRead(buttonPin);
+  // check if the pushbutton is pressed.
+  // if it is, the buttonState is HIGH
+  if (buttonState == HIGH && erase_flag == 0) {
+    EEPROM_erase_all();
+  }
   server.handleClient();          //Handle client requests
 }
